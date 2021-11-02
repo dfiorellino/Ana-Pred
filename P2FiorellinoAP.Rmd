@@ -1,0 +1,648 @@
+---
+title: "parcial2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+# LIBRERIAS
+
+library(dplyr)
+library(ggplot2)
+installed.packages("fastDummies")
+library(fastDummies)
+install.packages("ggcorrplot")
+library(ggcorrplot)
+library(dplyr)
+library(GGally)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(nnet)
+library(NeuralNetTools)
+library(e1071)
+
+```
+
+
+```{r}
+#base gral
+dim(datos)
+str(datos)
+head(datos)
+
+cols<- c("titleType","startYear", "endYear", "runtimeMinutes", "genres_x", "directors", "writers", "language", "types", "attributes", "genres_y", "original_language", "overview", "production_companies", "production_countries", "release_date", "status", "tagline", "video")
+  #Le aplicamos una misma función a todas las columnas con lapply  
+datos[cols] <- lapply(datos[cols], factor)
+
+
+datos$seasonNumber<-as.integer(datos$seasonNumber)
+datos$episodeNumber<-as.integer(datos$episodeNumber)
+
+
+# Variable TARGET
+# target
+barplot(table(datoss$averageRating),main = 'Ingreso Anual',col='blue',ylab = 'Cantidad', xlab = "Target")
+
+table(datos$averageRating)
+summary(datos$averageRating)
+```
+
+```{r}
+#MISSINGS
+
+colSums(datos == "\\N") + colSums(datos == "") 
+
+colSums(is.na(datos))
+
+#Copio base
+df_train <- datos
+
+# elimino las que tienen muchos missings
+
+df_train$endYear <- NULL
+df_train$language <- NULL
+df_train$attributes <- NULL
+df_train$adult <- NULL
+df_train$genres_y <- NULL
+df_train$production_companies <- NULL
+df_train$production_countries <- NULL
+df_train$overview <- NULL
+df_train$original_language <- NULL
+df_train$release_date <- NULL
+df_train$status <- NULL
+df_train$tagline <- NULL
+df_train$video <- NULL
+df_train$language <- NULL
+df_train$types <- NULL
+
+df_train$ordering <- NULL
+df_train$budget <- NULL
+df_train$popularity <- NULL
+df_train$revenue <- NULL
+df_train$runtime <- NULL
+df_train$isOriginalTitle <- NULL
+
+
+# Otras que fui eliminando
+df_train$id <- NULL
+
+df_train$directors <- NULL
+df_train$writers <- NULL
+df_train$genres_x <- NULL
+df_train$isAdult <- NULL
+
+#language: porahi poner los que estan y others/unksnown
+
+# igual con status y release date, endYear: 830 mil datos de status faltan y no tienen end date, y 430 mil peliculas released no tienen end date
+
+table(datos$endYear, datos$status)
+
+#start day hace mas de 50 anios: no puedo suponer que todavia no se termino de filmar. Capaz el dato falta
+#ordering: NA's: no puedo suponer 0 porque cambia
+
+
+#NUMERO DE EPISODIOS POR TIPO DE titulo
+table(datos$episodeNumber, datos$titleType)
+
+#NUMERO DE TEMPORADAS POR TIPO DE titulo
+table(datos$seasonNumber, datos$titleType)
+
+# # SOLO TIENEN NUMERO DE EPISODIOS Y TEMPORADAS LOS TVEPISODES: AL RESTO LOS REEMPLAZO CON 0
+
+# cambio season numer y episode number por 0 si es na
+df_train$episodeNumber[is.na(df_train$episodeNumber)] <- 0
+df_train$seasonNumber[is.na(df_train$seasonNumber)] <- 0
+
+
+# vuelvo a ver missings de la nueva
+
+colSums(df_train == "\\N") + colSums(df_train == "") 
+
+colSums(is.na(df_train))
+
+
+#Title
+table(df_train$titleType)
+
+
+#Lo reemplazo por el tipo que tenga un avg rating mas similar 
+df_train %>%
+  group_by(titleType) %>%
+  summarise(tiempoPRom=mean(averageRating))
+
+df_train$titleType[df_train$titleType == ""] <- "tvEpisode"
+
+
+str(df_train)
+
+#YEAR
+df_train$startYear <- as.numeric(levels(df_train$startYear))[df_train$startYear]  
+mean(df_train$startYear, na.rm = TRUE)
+  ## ANIO PROMEDIO 2000
+
+# remplazo missings por media = 2000
+df_train$startYear[df_train$startYear == ""] <- 2000
+df_train$startYear[df_train$startYear == "\\N"] <- 2000
+df_train$startYear[is.na(df_train$startYear)] <- 2000
+
+
+# runtime minutes, lo reemplazo por el mean de tiempo del tipo de pelicula al que pertenecen
+
+df_train$runtimeMinutes[df_train$runtimeMinutes == "\\N"] <- is.na(df_train$runtimeMinutes)
+df_train$runtimeMinutes <- as.numeric(df_train$runtimeMinutes)
+
+
+df_train %>%
+  group_by(titleType) %>%
+  summarise(tiempoPRom=mean(runtimeMinutes, na.rm = TRUE))
+
+df_train$runtimeMinutes[df_train$titleType == "movie" & is.na(df_train$runtimeMinutes)] <- 439
+df_train$runtimeMinutes[df_train$titleType == "short" & is.na(df_train$runtimeMinutes)] <- 255
+df_train$runtimeMinutes[df_train$titleType == "tvEpisode" & is.na(df_train$runtimeMinutes)] <- 331
+df_train$runtimeMinutes[df_train$titleType == "tvMiniSeries" & is.na(df_train$runtimeMinutes)] <- 329
+df_train$runtimeMinutes[df_train$titleType == "tvMovie" & is.na(df_train$runtimeMinutes)] <- 452
+df_train$runtimeMinutes[df_train$titleType == "tvSeries" & is.na(df_train$runtimeMinutes)] <- 344
+df_train$runtimeMinutes[df_train$titleType == "tvShort" & is.na(df_train$runtimeMinutes)] <- 234
+df_train$runtimeMinutes[df_train$titleType == "tvSpecial" & is.na(df_train$runtimeMinutes)] <- 350
+df_train$runtimeMinutes[df_train$titleType == "video" & is.na(df_train$runtimeMinutes)] <- 378
+df_train$runtimeMinutes[df_train$titleType == "videoGame" & is.na(df_train$runtimeMinutes)] <- 339
+
+```
+
+
+
+```{r}
+# ANALISIS UNI
+
+# num vote
+
+summary(df_train$numVotes)
+boxplot(df_train$numVotes,
+        main = "Distribucion del numero de votos",
+        ylab = "Votos",
+        col = "lightblue",
+        border = "blue")
+
+
+# start year
+boxplot(df_train$startYear,
+        main = "Distribucion fecha comienzo",
+        ylab = "Fecha",
+        col = "purple",
+        border = "blue")
+summary(df_train$startYear)
+
+
+#num episodios
+boxplot(df_train$episodeNumber,
+        main = "Distribucion numero episodio",
+        ylab = "episodio",
+        col = "yellow",
+        border = "gold")
+summary(df_train$episodeNumber)
+
+#num seasons
+D
+
+
+## remplazo 10 outliers por mean de seasons = 2
+
+mean(df_train$seasonNumber)
+
+df_train$seasonNumber[df_train$seasonNumber > 130 ] <- 2
+
+
+```
+
+```{r}
+# variables cuali
+
+# title type 
+
+nueva = df_train
+
+nueva <- mutate(nueva, 
+            rating = ifelse(df_train$averageRating < 4, " Low",
+                       ifelse(df_train$averageRating >= 4 & 
+                              df_train$averageRating <= 7, " Medium", " High")))
+
+tab <- table(nueva$titleType,nueva$rating)
+barplot(tab,beside=TRUE, col=topo.colors(nrow(tab)), legend = rownames(tab))
+
+
+ggplot(data = nueva) +
+  geom_bar(mapping = aes(x = nueva$titleType),fill="darkmagenta")+ xlab("Tipo de Titulo") 
+
+
+## TRANSFORMO A DUMMI
+
+dumm_data <-dummy_cols(df_train,  select_columns = c("titleType")) %>% 
+  select(-c("titleType"))
+
+dumm_data$titleType_ <- NULL
+#dumm_data$titleType_movie <- NULL     ## dicotoma base (si ninguna otra toma el valor 1, es movie)
+str(dumm_data)
+
+
+```
+
+
+```{r}
+# Normalizo
+
+dumm2 = dumm_data
+dumm2$numVotes <- as.numeric(dumm2$numVotes)  
+str(dumm2)
+
+# numvotos
+dumm2$numVotes<-scale(dumm2$numVotes)
+summary(dumm2$numVotes)
+sd(dumm2$numVotes)
+
+# runtime
+dumm2$runtimeMinutes<-scale(dumm2$runtimeMinutes)
+summary(df_train$runtimeMinutes)
+sd(df_train$runtimeMinutes)
+
+# season num
+dumm2$seasonNumber<-scale(dumm2$seasonNumber)
+
+# episode num
+dumm2$episodeNumber<-scale(dumm2$episodeNumber)
+
+# start year
+# dumm2$startYear<-scale(dumm2$startYear)
+```
+
+```{r}
+# Chi cuadrado
+
+# Si el valor p es menor que o igual al nivel de significancia, se rechaza la hipótesis nula y concluye que hay una asociación estadísticamente significativa entre las variables.
+
+#Ho: variables independientes
+# Si rechazo hay una asociacion estadisticamente significativa entre las variables
+
+# num votes
+tabla2 <- table(df_train$averageRating,df_train$numVotes)
+
+chisq.test(tabla2)    # valor P < 0.05
+
+
+
+# runtime minutes
+
+tabla3 <- table(df_train$averageRating,df_train$runtimeMinutes)
+
+chisq.test(tabla3)    # valor P < 0.05
+
+# season num
+tabla4 <- table(df_train$averageRating,df_train$seasonNumber)
+
+chisq.test(tabla4)    # valor P < 0.05
+
+# episode num
+tabla5 <- table(df_train$averageRating,df_train$episodeNumber)
+
+chisq.test(tabla5)    # valor P < 0.05
+
+# start year
+tabla6 <- table(df_train$averageRating,df_train$startYear)
+
+chisq.test(tabla6)    # valor P < 0.05
+
+# is adult
+tabla7 <- table(df_train$averageRating,df_train$isAdult)
+
+chisq.test(tabla7)    # valor P < 0.05
+
+
+```
+
+```{r}
+
+# CORRELACION
+
+cor(dumm2$numVotes,dumm2$averageRating, method="pearson", use = "complete.obs")
+cor(dumm2$runtimeMinutes,dumm2$averageRating, method="pearson", use = "complete.obs")
+cor(dumm2$seasonNumber,dumm2$averageRating, method="pearson", use = "complete.obs")
+cor(dumm2$episodeNumber,dumm2$averageRating, method="pearson", use = "complete.obs")
+
+
+
+# Matriz correlacion
+
+my_data <- dumm2[, c(1,2,3,4,5,6)]
+
+
+my_data %>%
+    cor %>% 
+    ggcorrplot(type = "lower", ggtheme = theme_minimal, colors = c("#6D9EC1","white","#E46726"),
+               show.diag = T,
+               lab = T, lab_size = 5,
+               title = "Correlation Matrix",
+               legend.title = "Correlation Value",
+               outline.color = "white",
+               hc.order = T)
+
+dumm2$episodeNumber <- NULL
+
+
+# base final
+
+str(dumm2)
+
+```
+
+
+```{r}
+# Particion!!
+
+a2 = dumm2
+a2$startYear <- as.numeric(levels(a2$startYear))[a2$startYear]  
+
+set.seed(123);particion=createDataPartition(y=a2$averageRating,p=0.85,list=FALSE)
+entrenar=a2[particion,]
+test=a2[-particion,]
+
+View(test)
+View(entrenar)
+
+dim(entrenar)
+
+table(a2$averageRating)
+table(entrenar$averageRating)
+table(test$averageRating)
+
+
+# regresion
+regresion <- lm(averageRating ~., data = entrenar)
+summary(regresion)
+
+
+
+  ## R2 de 0.1587 --> muy bajo
+
+pred1 <- predict(regresion, test)
+
+cor(test$averageRating, pred1)
+#El valor de 0.9945 indica una alta correlación y, por lo tanto, un buen ajuste a los datos por parte del modelo obtenido.
+
+confusionMatrix(table(pred1,test$averageRating))
+
+plot(regresion)
+
+# arbol
+
+arbol=rpart(averageRating~.,entrenar)
+pred= predict(arbol,test)
+rpart.plot(arbol)
+
+pred
+confusionMatrix(table(pred,test$averageRating))
+
+x <- pred
+y <- test$averageRating
+l <- union(x, y)
+Table2 <- table(factor(x, l), factor(y, l))
+confusionMatrix(Table2)
+
+
+# pruebo con target como factor
+
+a3 = a2
+a3$averageRating <- as.factor(a3$averageRating)
+
+set.seed(123) 
+particion=createDataPartition(y=a3$averageRating,p=0.85,list=FALSE)
+entrenar=a3[particion,]
+test=a3[-particion,]
+arbol=rpart(averageRating~.,entrenar, method = "class")
+
+pred=predict(arbol,test,type="class")
+arbol$variable.importance
+
+confusionMatrix(table(pred,test$averageRating))
+
+
+# redes neuronales
+set.seed(123); red=nnet(averageRating~., entrenar, size=6,maxit=10000) 
+
+pred=predict(red, test, type = "class")
+
+confusionMatrix(factor(pred),factor(test$averageRating))
+dput(table(pred, test$averageRating))
+
+test$averageRating<-as.numeric(levels(test$averageRating))[test$averageRating]
+entrenar$averageRating<-as.numeric(levels(entrenar$averageRating))[entrenar$averageRating]
+
+
+set.seed(123);red=nnet(averageRating~.,entrenar,size=6,maxit=1000, linout=FALSE)
+
+pred = predict(red, test)
+
+plotnet(red)
+
+
+# SVM
+
+set.seed(123)
+particion=createDataPartition(y=a3$averageRating,p=0.80,list=FALSE)
+entrenar=a3[particion,]
+test=a3[-particion,]
+svm=svm(averageRating~.,entrenar,kernel="radial")
+
+pred=predict(svm,test,type="class")
+confusionMatrix(pred,test$aprobado)
+
+
+
+#CV
+
+  #10 folds
+folds <- createFolds(entrenar$averageRating, k = 10)
+ctrl <- trainControl(method="cv",  number = 10)
+modelo1 <- train(averageRating~., dumm2, method = "lm", trControl = ctrl)
+modelo1
+
+  #20 folds
+folds <- createFolds(entrenar$averageRating, k = 20)
+ctrl <- trainControl(method="cv",  number = 20)
+modelo1 <- train(averageRating~., dumm2, method = "lm", trControl = ctrl)
+modelo1
+
+```
+
+```{r}
+
+# BASE RESULTADOS
+
+cols<- c("titleType","startYear", "endYear", "runtimeMinutes", "genres_x", "directors", "writers", "language", "types", "attributes", "genres_y", "original_language", "overview", "production_companies", "production_countries", "release_date", "status", "tagline", "video")
+  #Le aplicamos una misma función a todas las columnas con lapply  
+resultados[cols] <- lapply(resultados[cols], factor)
+
+
+resultados$seasonNumber<-as.integer(resultados$seasonNumber)
+resultados$episodeNumber<-as.integer(resultados$episodeNumber)
+resultados$endYear <- NULL
+resultados$language <- NULL
+resultados$attributes <- NULL
+resultados$adult <- NULL
+resultados$genres_y <- NULL
+resultados$production_companies <- NULL
+resultados$production_countries <- NULL
+resultados$overview <- NULL
+resultados$original_language <- NULL
+resultados$release_date <- NULL
+resultados$status <- NULL
+resultados$tagline <- NULL
+resultados$video <- NULL
+resultados$language <- NULL
+resultados$types <- NULL
+
+resultados$ordering <- NULL
+resultados$budget <- NULL
+resultados$popularity <- NULL
+resultados$revenue <- NULL
+resultados$runtime <- NULL
+resultados$isOriginalTitle <- NULL
+resultados$episodeNumber <- NULL
+
+#df_train$id <- NULL
+
+
+resultados$directors <- NULL
+resultados$writers <- NULL
+resultados$genres_x <- NULL
+resultados$isAdult <- NULL
+
+# cambio season numer y episode number por 0 si es na
+
+resultados$seasonNumber[is.na(resultados$seasonNumber)] <- 0
+
+
+# vuelvo a ver missings de la nueva
+
+colSums(resultados == "\\N") + colSums(resultados == "") 
+
+colSums(is.na(resultados))
+
+
+#TITLE
+#Lo reemplazo por el tipo que tenga un avg rating mas similar 
+
+resultados %>%
+  group_by(titleType) %>%
+  summarise(tiempoPRom=mean(averageRating))
+
+resultados$titleType[resultados$titleType == ""] <- "tvEpisode"
+
+
+str(df_train)
+
+#YEAR
+resultados$startYear <- resultados(levels(resultados$startYear))[resultados$startYear]  
+mean(df_train$startYear, na.rm = TRUE)
+  ## ANIO PROMEDIO 2000
+
+# remplazo missings por media = 2000
+resultados$startYear[resultados$startYear == ""] <- 2000
+resultados$startYear[resultados$startYear == "\\N"] <- 2000
+resultados$startYear[is.na(resultados$startYear)] <- 2000
+
+
+# runtime minutes
+
+resultados$runtimeMinutes[resultados$runtimeMinutes == "\\N"] <- is.na(resultados$runtimeMinutes)
+resultados$runtimeMinutes <- as.numeric(resultados$runtimeMinutes)
+
+
+resultados %>%
+  group_by(titleType) %>%
+  summarise(tiempoPRom=mean(runtimeMinutes, na.rm = TRUE))
+
+resultados$runtimeMinutes[resultados$titleType == "movie" & is.na(resultados$runtimeMinutes)] <- 331
+resultados$runtimeMinutes[resultados$titleType == "short" & is.na(resultados$runtimeMinutes)] <- 204
+resultados$runtimeMinutes[resultados$titleType == "tvEpisode" & is.na(resultados$runtimeMinutes)] <- 271
+resultados$runtimeMinutes[resultados$titleType == "tvMiniSeries" & is.na(resultados$runtimeMinutes)] <- 268
+resultados$runtimeMinutes[resultados$titleType == "tvMovie" & is.na(resultados$runtimeMinutes)] <- 349
+resultados$runtimeMinutes[resultados$titleType == "tvSeries" & is.na(resultados$runtimeMinutes)] <- 282
+resultados$runtimeMinutes[resultados$titleType == "tvShort" & is.na(resultados$runtimeMinutes)] <- 188
+resultados$runtimeMinutes[resultados$titleType == "tvSpecial" & is.na(resultados$runtimeMinutes)] <- 277
+resultados$runtimeMinutes[resultados$titleType == "video" & is.na(resultados$runtimeMinutes)] <- 300
+resultados$runtimeMinutes[resultados$titleType == "videoGame" & is.na(resultados$runtimeMinutes)] <- 272
+
+
+results <-dummy_cols(resultados,  select_columns = c("titleType")) %>% 
+  select(-c("titleType"))
+
+results$titleType_ <- NULL
+#dumm_data$titleType_movie <- NULL     ## dicotoma base (si ninguna otra toma el valor 1, es movie)
+str(dumm_data)
+
+# NORMALIZO
+
+results$numVotes <- as.numeric(results$numVotes)  
+str(results)
+
+# numvotos
+results$numVotes<-scale(results$numVotes)
+summary(results$numVotes)
+sd(results$numVotes)
+
+# runtime
+results$runtimeMinutes<-scale(results$runtimeMinutes)
+summary(df_train$runtimeMinutes)
+sd(df_train$runtimeMinutes)
+
+# season num
+results$seasonNumber<-scale(results$seasonNumber)
+
+# episode num
+results$episodeNumber<-scale(results$episodeNumber)
+
+
+
+str(a2)
+str(results)
+results$startYear <- as.numeric(levels(results$startYear))[results$startYear]  
+
+```
+
+```{r}
+
+# FINAL, PASO A CSV (modelo arrbol)
+
+subir <- data.frame(predict(arbol, results))
+names(subir)[1]="averageRating"
+subir$"id"<-results$id
+
+write.csv2(subir, file = "SCORE2.csv", row.names = F)
+
+
+```
+
+
