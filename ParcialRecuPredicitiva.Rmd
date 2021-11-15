@@ -1,0 +1,655 @@
+---
+title: "ojala"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+library(dplyr)
+library(ggplot2)
+#installed.packages("fastDummies")
+library(fastDummies)
+#install.packages("ggcorrplot")
+library(ggcorrplot)
+library(dplyr)
+library(GGally)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(nnet)
+library(NeuralNetTools)
+library(e1071)
+```
+
+
+```{r}
+# BASE DATOS gral
+
+dim(datos)
+str(datos)
+head(datos)
+
+cols<- c("titleType", "genres_x", "directors", "writers", "language", "types", "attributes", "genres_y", "original_language", "overview", "production_companies", "production_countries", "release_date", "status", "tagline", "video")
+
+datos[cols] <- lapply(datos[cols], factor)
+
+base = datos
+
+hola = datos
+
+# Variable TARGET
+# target
+D
+table(datos$averageRating)
+summary(datos$averageRating)
+
+
+# MISSINGS
+
+missings = data.frame(colSums(hola == "\\N" | hola == "" | is.na(hola)))
+
+# elimino mas de 95
+hola$attributes <- NULL
+hola$adult <- NULL
+hola$budget <- NULL
+hola$genres_y <- NULL
+hola$original_language <- NULL
+hola$overview <- NULL
+hola$popularity <- NULL
+hola$production_companies <- NULL
+hola$production_countries <- NULL
+hola$release_date <- NULL
+hola$revenue <- NULL
+hola$runtime <- NULL
+hola$status <- NULL
+hola$tagline <- NULL
+hola$video <- NULL
+hola$language <- NULL
+
+hola$id <- NULL
+
+
+# mas de 95
+missings_95   <- datos[c(14,16,18,19,20,21,22,23,24,25,26,27,28,29,30,31)]
+missings_95_2 = data.frame(colSums(missings_95 == "\\N" | missings_95 == "" | is.na(missings_95)))
+
+# las que transforme
+missings_AT   <- datos[c(3,4,5,6,7,8,9,10,11,12)]
+missings_AT_2 = data.frame(colSums(missings_AT == "\\N" | missings_AT == "" | is.na(missings_AT)))
+
+# las q borre despues
+missings_chau  <- datos[c(13,15,17)]
+missings_chau_2 = data.frame(colSums(missings_chau == "\\N" | missings_chau == "" | is.na(missings_chau)))
+
+
+```
+
+```{r}
+
+# DIRECTORES
+
+table(hola$directors)
+
+
+sum(hola$directors == "\\N") #135525
+sum(hola$directors == "") # 2
+sum(is.na(hola$directors)) #0
+
+hola$directors[hola$directors == ""] <-  "\\N"
+  
+##
+library(dplyr)
+
+high_D <- hola %>% group_by(directors) %>%
+    summarise(avg_score=mean(averageRating),cont=n()) %>%
+    arrange(desc(avg_score)) %>% 
+    filter(cont>10, avg_score>7)
+
+low_D <- hola %>% group_by(directors) %>%
+    summarise(avg_score=mean(averageRating),cont=n()) %>%
+    arrange(desc(avg_score)) %>% 
+    filter(cont>10, avg_score<=4)
+
+nrow(high_D)
+nrow(low_D)
+
+hola$high_director <- ifelse(hola$directors %in% high_D$directors,1,0)
+hola$low_director <- ifelse(hola$directors %in% low_D$directors,1,0)
+
+sum(hola$high_director)
+sum(hola$low_director)
+
+
+# WRITERS
+
+high_W <- hola %>% group_by(writers) %>%
+    summarise(avg_score=mean(averageRating),cont=n()) %>%
+    arrange(desc(avg_score)) %>% 
+    filter(cont>10, avg_score>7)
+
+low_W <- hola %>% group_by(writers) %>%
+    summarise(avg_score=mean(averageRating),cont=n()) %>%
+    arrange(desc(avg_score)) %>% 
+    filter(cont>10, avg_score<=4)
+
+nrow(high_W)
+nrow(low_W)
+
+hola$high_writer <- ifelse(hola$writers %in% high_W$writers,1,0)
+hola$low_writer <- ifelse(hola$writers %in% low_W$writers,1,0)
+
+sum(hola$high_writer)
+sum(hola$low_writer)
+
+
+# GENERO
+
+c <- hola %>% group_by(genres_x) %>%
+    summarise(avg_score=mean(averageRating),cont=n()) %>%
+    arrange(desc(avg_score)) %>% 
+    filter(cont>10, avg_score>7)
+
+nrow(c)
+
+hola$high_genre <- ifelse(hola$genres_x %in% c$genres_x,1,0)
+sum(hola$high_genre)
+
+
+
+hola$directors <- NULL
+hola$writers <- NULL
+hola$genres_x <- NULL
+
+
+```
+
+```{r}
+
+# TITLE TYPE
+
+table(hola$titleType)
+
+#Lo reemplazo por el tipo que tenga un avg rating mas similar 
+hola %>%
+  group_by(titleType) %>%
+  summarise(rating_prom=mean(averageRating))
+
+hola$titleType[hola$titleType == ""] <- "tvEpisode"
+
+ggplot(data = hola, aes(x = titleType, y = averageRating, colour = titleType)) +
+  geom_boxplot() + coord_flip()
+
+# isAdult
+table(hola$isAdult)
+hola$isAdult[hola$isAdult == 2020] <- 0
+hola$isAdult[is.na(hola$isAdult)] <- 0
+
+hola$isAdult <- as.factor(hola$isAdult)
+
+ggplot(data = hola, aes(x = isAdult, y = averageRating, colour = isAdult)) +
+  geom_boxplot() + coord_flip()
+
+
+# Variable Start year
+hola$startYear <- as.numeric(hola$startYear)
+
+median(hola$startYear, na.rm = TRUE)
+
+hola$startYear[is.na(hola$startYear)] <- 2008
+
+
+# runtimeMinutes
+hola$runtimeMinutes <- as.numeric(hola$runtimeMinutes)
+hola %>%
+  group_by(titleType) %>%
+  summarise(timeMed=median(runtimeMinutes, na.rm = TRUE))
+
+hola$runtimeMinutes[hola$titleType == "movie" & is.na(hola$runtimeMinutes)] <- 91
+hola$runtimeMinutes[hola$titleType == "short" & is.na(hola$runtimeMinutes)] <- 12
+hola$runtimeMinutes[hola$titleType == "tvEpisode" & is.na(hola$runtimeMinutes)] <- 34
+hola$runtimeMinutes[hola$titleType == "tvMiniSeries" & is.na(hola$runtimeMinutes)] <- 60
+hola$runtimeMinutes[hola$titleType == "tvMovie" & is.na(hola$runtimeMinutes)] <- 88
+hola$runtimeMinutes[hola$titleType == "tvSeries" & is.na(hola$runtimeMinutes)] <- 30
+hola$runtimeMinutes[hola$titleType == "tvShort" & is.na(hola$runtimeMinutes)] <- 12
+hola$runtimeMinutes[hola$titleType == "tvSpecial" & is.na(hola$runtimeMinutes)] <- 86
+hola$runtimeMinutes[hola$titleType == "video" & is.na(hola$runtimeMinutes)] <- 41
+hola$runtimeMinutes[hola$titleType == "videoGame" & is.na(hola$runtimeMinutes)] <- 44
+
+table(hola$runtimeMinutes)
+
+# episode number
+
+hola$episodeNumber <- as.numeric(hola$episodeNumber)
+hola$episodeNumber[is.na(hola$episodeNumber)] <- 0
+
+# season number
+hola$seasonNumber <- as.numeric(hola$seasonNumber)
+hola$seasonNumber[is.na(hola$seasonNumber)] <- 0
+
+# end year
+hola$endYear <- as.numeric(hola$endYear) 
+
+dif_years = hola$endYear - hola$startYear
+mean(dif_years, na.rm = TRUE)
+
+hola$endYear[is.na(hola$endYear)] <- hola$startYear + 2
+
+
+
+
+# direc
+table(hola$high_director)
+hola$high_director <- as.factor(hola$high_director)
+
+ggplot(data = hola, aes(x = high_director, y = averageRating, colour = high_director)) +
+  geom_boxplot() + coord_flip()
+
+table(hola$low_director)
+hola$low_director <- as.factor(hola$low_director)
+
+ggplot(data = hola, aes(x = low_director, y = averageRating, colour = low_director)) +
+  geom_boxplot() + coord_flip()
+
+
+
+```
+
+```{r}
+# saco otras variables
+hola$isOriginalTitle <- NULL
+hola$ordering <- NULL
+hola$types <- NULL
+
+```
+
+```{r}
+
+## OUTLIERS
+
+## Num Votes
+
+summary(hola$numVotes)
+sd(hola$numVotes)
+
+boxplot(hola$numVotes,
+        main = "Distribucion de votos",
+        ylab = "Votos",
+        col = "lightgreen",
+        border = "darkgreen")
+
+quantile(hola$numVotes, c(.10,.25,.50,0.75,.90))
+
+ric= 92 -9
+ric
+limite_inferior=9-3*ric
+limite_inferior
+limite_superior=92+3*ric
+limite_superior
+
+table(hola$numVotes)
+
+out_numVotes    <- hola %>% filter(numVotes > 341)
+
+##  110033 registros outliers
+
+
+# runtime minutes
+
+boxplot(hola$runtimeMinutes,
+        main = "Distribucion runtimeMinutes",
+        ylab = "minutos",
+         col = "pink",
+        border = "red")
+
+summary(hola$runtimeMinutes)
+sd(hola$runtimeMinutes)
+
+quantile(hola$runtimeMinutes, c(.10,.25,.50,0.75,.90))
+
+ric= 82 -27
+ric
+limite_inferior= 27 - 3*ric
+limite_inferior
+limite_superior= 82 +3*ric
+limite_superior
+
+table(hola$runtimeMinutes)
+out_runM    <- hola %>% filter(runtimeMinutes > 247)
+
+## 2240 outliers
+
+
+# season
+
+boxplot(hola$seasonNumber,
+        main = "Distribucion season number",
+        ylab = "temporadas",
+        col = "purple",
+        border = "purple")
+
+season    <- hola %>% filter(seasonNumber > 0)
+
+summary(season$seasonNumber)
+sd(season$seasonNumber)
+
+quantile(hola$seasonNumber, c(.10,.25,.50,0.75,.90))
+
+ric= 4-1
+ric
+limite_inferior= 1 - 3*ric
+limite_inferior
+limite_superior= 4 +3*ric
+limite_superior
+
+table(season$seasonNumber)
+
+outSe    <- hola %>% filter(seasonNumber > 13) %>% pull(seasonNumber)
+
+## 23792 outliers
+
+# episode
+
+boxplot(hola$episodeNumber,
+        main = "Distribucion episode Number",
+        ylab = "Episodios",
+        col = "lightblue",
+        border = "blue")
+
+
+episode <- hola %>% filter(episodeNumber > 0)
+
+summary(episode$episodeNumber)
+sd(episode$episodeNumber)
+
+ric= 17 - 4
+ric
+limite_inferior= 4 - 3*ric
+limite_inferior
+limite_superior= 17 +3*ric
+limite_superior
+
+table(episode$episodeNumber)
+
+outEpi    <- hola %>% filter(episodeNumber > 56) %>% pull(episodeNumber)
+
+## 23522 outliers
+
+
+
+```
+
+
+
+
+```{r}
+library(fastDummies)
+
+dumm_data <-dummy_cols(hola,  select_columns = c("titleType")) %>% 
+  select(-c("titleType"))
+
+dumm_data$titleType_ <- NULL
+
+dumm_data$rating <- NULL
+dumm_data$votos <- NULL
+
+
+missings_final = data.frame(colSums(dumm_data == "\\N" | dumm_data == "" | is.na(dumm_data)))
+```
+
+```{r}
+my_data <- dumm_data[c(1,2,4,5,6,7,8)]
+
+library(ggcorrplot)
+
+my_data %>%
+    cor %>% 
+    ggcorrplot(type = "lower", ggtheme = theme_minimal, colors = c("#6D9EC1","white","#E46726"),
+               show.diag = T,
+               lab = T, lab_size = 5,
+               title = "Correlation Matrix",
+               legend.title = "Correlation Value",
+               outline.color = "white",
+               hc.order = T)
+```
+
+
+```{r}
+library(caret)
+
+set.seed(123) 
+particion=createDataPartition(y=dumm_data$averageRating,p=0.70,list=FALSE)
+entrenar=dumm_data[particion,]
+test=dumm_data[-particion,]
+
+# regresion
+regresion <- lm(averageRating ~., data = entrenar)
+summary(regresion)
+
+
+ent = entrenar 
+ent$endYear <- NULL
+ent$titleType_videoGame <-NULL
+
+# regresion
+regresion <- lm(averageRating ~., data = ent)
+summary(regresion)
+
+# no cambia sacar tv mini series: mismo accuracy, las otras vars toman mas significacnia
+# sacar tv short tampoco
+
+```
+
+```{r}
+#CV
+
+  #10 folds
+folds <- createFolds(entrenar$averageRating, k = 10)
+ctrl <- trainControl(method="cv",  number = 10)
+modelo1 <- train(averageRating~., dumm_data, method = "lm", trControl = ctrl)
+modelo1
+
+  #20 folds
+folds <- createFolds(entrenar$averageRating, k = 20)
+ctrl <- trainControl(method="cv",  number = 20)
+modelo5 <- train(averageRating~., dumm_data, method = "lm", trControl = ctrl)
+modelo5
+```
+
+```{r}
+write.csv(entrenar,'Prueba_entrenar.csv')
+write.csv(test,'Prueba_test.csv')
+
+```
+
+
+```{r}
+## RESULTADOS
+res_original = resultados
+
+resultados[cols] <- lapply(resultados[cols], factor)
+
+# TRATAMIENTO MISSINGS
+
+missings = data.frame(colSums(resultados == "\\N" | resultados == "" | is.na(resultados)))
+
+# elimino mas de 95
+resultados$attributes <- NULL
+resultados$adult <- NULL
+resultados$budget <- NULL
+resultados$genres_y <- NULL
+resultados$original_language <- NULL
+resultados$overview <- NULL
+resultados$popularity <- NULL
+resultados$production_companies <- NULL
+resultados$production_countries <- NULL
+resultados$release_date <- NULL
+resultados$revenue <- NULL
+resultados$runtime <- NULL
+resultados$status <- NULL
+resultados$tagline <- NULL
+resultados$video <- NULL
+resultados$language <- NULL
+
+
+```
+
+```{r}
+# DIRECTORES
+
+table(resultados$directors)
+
+sum(resultados$directors == "\\N") 
+sum(resultados$directors == "")  
+sum(is.na(resultados$directors)) #0
+
+resultados$directors[resultados$directors == ""] <-  "\\N"
+  
+##
+
+resultados$high_director <- ifelse(resultados$directors %in% p$directors,1,0)
+resultados$low_director <- ifelse(resultados$directors %in% q$directors,1,0)
+
+sum(resultados$high_director)
+sum(resultados$low_director)
+
+
+# WRITERS
+resultados$high_writer <- ifelse(resultados$writers %in% a$writers,1,0)
+resultados$low_writer <- ifelse(resultados$writers %in% b$writers,1,0)
+
+sum(resultados$high_writer)
+sum(resultados$low_writer)
+
+
+# GENERO
+
+resultados$high_genre <- ifelse(resultados$genres_x %in% c$genres_x,1,0)
+sum(resultados$high_genre)
+
+
+
+resultados$directors <- NULL
+resultados$writers <- NULL
+resultados$genres_x <- NULL
+```
+
+```{r}
+
+# TITLE TYPE
+
+table(resultados$titleType)
+resultados$titleType[resultados$titleType == ""] <- "tvEpisode"
+
+# isAdult
+table(resultados$isAdult)
+resultados$isAdult[resultados$isAdult == 2014] <- 0
+resultados$isAdult[is.na(resultados$isAdult)] <- 0
+
+# Variable Start year
+resultados$startYear <- as.numeric(resultados$startYear)
+median(resultados$startYear, na.rm = TRUE)
+resultados$startYear[is.na(resultados$startYear)] <- 2008
+
+
+# runtimeMinutes
+resultados$runtimeMinutes <- as.numeric(resultados$runtimeMinutes)
+resultados %>%
+  group_by(titleType) %>%
+  summarise(timeMed=median(runtimeMinutes, na.rm = TRUE))
+
+resultados$runtimeMinutes[resultados$titleType == "movie" & is.na(resultados$runtimeMinutes)] <- 91
+resultados$runtimeMinutes[resultados$titleType == "short" & is.na(resultados$runtimeMinutes)] <- 12
+resultados$runtimeMinutes[resultados$titleType == "tvEpisode" & is.na(resultados$runtimeMinutes)] <- 34
+resultados$runtimeMinutes[resultados$titleType == "tvMiniSeries" & is.na(resultados$runtimeMinutes)] <- 60
+resultados$runtimeMinutes[resultados$titleType == "tvMovie" & is.na(resultados$runtimeMinutes)] <- 88
+resultados$runtimeMinutes[resultados$titleType == "tvSeries" & is.na(resultados$runtimeMinutes)] <- 30
+resultados$runtimeMinutes[resultados$titleType == "tvShort" & is.na(resultados$runtimeMinutes)] <- 12
+resultados$runtimeMinutes[resultados$titleType == "tvSpecial" & is.na(resultados$runtimeMinutes)] <- 86
+resultados$runtimeMinutes[resultados$titleType == "video" & is.na(resultados$runtimeMinutes)] <- 41
+resultados$runtimeMinutes[resultados$titleType == "videoGame" & is.na(resultados$runtimeMinutes)] <- 44
+
+table(resultados$runtimeMinutes)
+
+# episode number
+resultados$episodeNumber <- as.numeric(resultados$episodeNumber)
+resultados$episodeNumber[is.na(resultados$episodeNumber)] <- 0
+
+# season number
+resultados$seasonNumber <- as.numeric(resultados$seasonNumber)
+resultados$seasonNumber[is.na(resultados$seasonNumber)] <- 0
+
+# end year
+resultados$endYear <- as.numeric(resultados$endYear) 
+
+dif_years = resultados$endYear - resultados$startYear
+mean(dif_years, na.rm = TRUE)
+
+resultados$endYear[is.na(resultados$endYear)] <- resultados$startYear + 2
+
+```
+
+```{r}
+# saco otras variables
+resultados$isOriginalTitle <- NULL
+resultados$ordering <- NULL
+resultados$types <- NULL
+```
+
+```{r}
+
+dumm_results <-dummy_cols(resultados,  select_columns = c("titleType")) %>% 
+  select(-c("titleType"))
+
+dumm_results$titleType_ <- NULL
+
+missings_final_res = data.frame(colSums(dumm_results == "\\N" | dumm_results == "" | is.na(dumm_results)))
+```
+
+```{r}
+write.csv(dumm_results,'Prueba_resultados.csv')
+```
+
+```{r}
+
+# pruebo red
+
+library(nnet)
+library(NeuralNetTools)
+library(e1071)
+
+set.seed(123); red=nnet(averageRating~., entrenar, size=10,maxit=10000) 
+
+pred_red=predict(red, test)
+
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+cm = table(test$averageRating, pred_red)
+cm
+accuracy(cm)
+
+plotnet(red)
+```
+
+
