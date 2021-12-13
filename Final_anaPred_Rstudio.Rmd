@@ -1,0 +1,550 @@
+---
+title: "final_AP"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggcorrplot)
+library(GGally)
+
+
+#installed.packages("fastDummies")
+library(fastDummies)
+#install.packages("ggcorrplot")
+library(dplyr)
+```
+
+
+```{r}
+# SOBRE LA BASE
+datos = job_change
+summary(datos)
+str(job_change)
+
+#var target
+table(datos$target)
+barplot(table(datos$target),main = 'Busca cambiar',col='lightblue',ylab = 'Cantidad', xlab = "Target")
+
+df <- data.frame(table(datos$target))
+
+graf<- ggplot(df, aes(x="", y=Freq, fill=Var1))+
+geom_bar(width = 1, stat = "identity")
+pie <- graf + coord_polar("y", start=0)
+pie + scale_fill_brewer(palette="Reds")+
+  theme_minimal()
+
+# MISSINGS 
+missings = data.frame(colSums(datos == "\\N" | datos == "" | is.na(datos)))
+
+missings$Porcentaje <- missings$colSums.datos.......N....datos.........is.na.datos../19158
+missings$Valores <- missings$colSums.datos.......N....datos.........is.na.datos..
+missings$colSums.datos.......N....datos.........is.na.datos..<-NULL
+
+```
+
+
+```{r}
+
+# TRATAMIENTO MISSINGS
+
+# GENDER - no tiene prop parecido, menos con male que es la moda
+
+table(datos$gender)
+a = data.frame(prop.table(table(datos$gender,datos$target),1)[,2])
+datos$gender[datos$gender == ""] <- "unknown"
+
+tab <- table(datos$gender,datos$target)
+barplot(tab,beside=TRUE, col=topo.colors(nrow(tab)), legend = rownames(tab))
+
+ggplot(data = job_change) +
+  geom_bar(mapping = aes(x = job_change$gender),fill= "darkmagenta")+ xlab("Gender") 
+
+ggplot(data = job_change, aes(x = gender, fill = targg)) +
+    geom_bar(position = position_dodge()) +
+    theme_classic()
+
+
+# enrolled university 
+table(datos$enrolled_university)
+a = data.frame(prop.table(table(datos$enrolled_university,datos$target),1)[,2])
+
+datos$enrolled_university[datos$enrolled_university == ''] <- "no_enrollment"
+
+ggplot(data = datos) +
+  geom_bar(mapping = aes(x = datos$enrolled_university),fill="lightgreen")+ xlab("Enrolled Uni") 
+
+tab <- table(datos$enrolled_university,datos$target)
+barplot(tab,beside=TRUE, col=topo.colors(nrow(tab)), legend = rownames(tab))
+
+ggplot(data = job_change, aes(x = enrolled_university, fill = targg)) +
+    geom_bar(position = position_dodge()) +
+    theme_classic()
+
+
+# education_level 
+table(datos$education_level)
+a = data.frame(prop.table(table(datos$education_level,datos$target),1)[,2])
+
+table(job_change$major_discipline, job_change$education_level) # los missings no tienen major discipline -> como High School y Primary School (uso el mas frecuente de estos dos)
+
+datos$education_level[datos$education_level == ''] <- "High School"
+
+ggplot(data = job_change) +
+  geom_bar(mapping = aes(x = job_change$education_level),fill="Orange")+ xlab("Education level") 
+
+tab <- table(datos$education_level,datos$target)
+barplot(tab,beside=TRUE, col=topo.colors(nrow(tab)), legend = rownames(tab))
+
+ggplot(data = job_change, aes(x = education_level, fill = targg)) +
+    geom_bar(position = position_dodge()) +
+    theme_classic()
+
+
+# major discipline
+datos$major_discipline <- as.factor(datos$major_discipline)
+
+table(datos$major_discipline)
+
+a = data.frame(prop.table(table(job_change$major_discipline,job_change$target),1)[,2])
+a$prop<-a$prop.table.table.job_change.major_discipline..job_change.target...
+a$prop.table.table.job_change.major_discipline..job_change.target...<-NULL
+
+levels(datos$major_discipline)[c(1,2,4,5)] <- "low_discipline"     # de 0 a 0.25
+levels(datos$major_discipline)[c(2,3,4)] <- "high_discipline"      # de 0.25 a 1
+
+a    <- a %>% filter(Var2 ==1 )
+
+ggplot(data = datos) +
+  geom_bar(mapping = aes(x = datos$major_discipline),fill="lightblue")+ xlab("Major Discipline") 
+
+tab <- table(datos$major_discipline,datos$target)
+barplot(tab,beside=TRUE, col=topo.colors(nrow(tab)), legend = rownames(tab))
+
+ggplot(data = datos, aes(x = major_discipline, fill = targg)) +
+    geom_bar(position = position_dodge()) +
+    theme_classic()
+
+# experience
+table(datos$experience)
+datos$experience[datos$experience == ''] <- ">20"
+
+ggplot(data = job_change) +
+  geom_bar(mapping = aes(x = job_change$experience),fill="lightblue")+ xlab("Experience") 
+
+
+
+# company_size
+table(datos$company_size)
+a = data.frame(prop.table(table(job_change$company_size,job_change$target),1)[,2])
+a$prop<-a$prop.table.table.job_change.company_size..job_change.target...
+a$prop.table.table.job_change.company_size..job_change.target...<-NULL
+
+datos$company_size <- as.factor(datos$company_size)
+
+levels(datos$company_size)[c(2,4,5,7,8)] <- "low_company_size"     # de 0 a 0.18
+levels(datos$company_size)[c(3,4,5)] <- "mid_company_size"      # de 0.18 a 0.35
+levels(datos$company_size)[c(1)] <- "high_company_size" 
+
+ggplot(data = job_change) +
+  geom_bar(mapping = aes(x = job_change$company_size),fill="purple")+ xlab("Company size") 
+
+tab <- table(datos$company_size,datos$target)
+barplot(tab,beside=TRUE, col=topo.colors(nrow(tab)), legend = rownames(tab))
+
+ggplot(data = datos, aes(x = company_size, fill = targg)) +
+    geom_bar(position = position_dodge()) +
+    theme_classic()
+
+
+# company_type
+table(datos$company_type)
+a = data.frame(prop.table(table(job_change$company_type,job_change$target),1)[,2])
+a$prop <- a$prop.table.table.job_change.company_type..job_change.target...
+a$prop.table.table.job_change.company_type..job_change.target...<-NULL
+
+datos$company_type <- as.factor(datos$company_type)
+
+levels(datos$company_type)[c(3,4,7)] <- "low_company_type"     # de 0 a 0.2
+levels(datos$company_type)[c(2,4,5)] <- "mid_company_type"      # de 0.2 a 0.3
+levels(datos$company_type)[c(1)] <- "high_company_type" 
+
+ggplot(data = job_change) +
+  geom_bar(mapping = aes(x = job_change$company_type),fill="orange")+ xlab("Company type") 
+
+tab <- table(datos$company_type,datos$target)
+barplot(tab,beside=TRUE, col=topo.colors(nrow(tab)), legend = rownames(tab))
+
+ggplot(data = datos, aes(x = company_type, fill = targg)) +
+    geom_bar(position = position_dodge()) +
+    theme_classic()
+
+#TABLA CRUZADA DOS ANTERIOR VER RELACION
+table(datos$company_type,datos$company_size) # no hay relacion
+
+
+
+# last_new_job
+table(datos$last_new_job)
+a = data.frame(prop.table(table(datos$last_new_job,datos$target),1))
+
+datos$last_new_job[datos$last_new_job == ''] <- "1"
+
+ggplot(data = job_change) +
+  geom_bar(mapping = aes(x = job_change$last_new_job),fill="darkmagenta")+ xlab("Last new job") 
+
+tab <- table(datos$last_new_job,datos$target)
+barplot(tab,beside=TRUE, col=topo.colors(nrow(tab)), legend = rownames(tab))
+
+ggplot(data = job_change, aes(x = experience, fill = targg)) +
+    geom_bar(position = position_dodge()) +
+    theme_classic()
+
+
+
+
+```
+
+
+```{r}
+# OUTLIERS
+
+str(datos)
+
+# city_development_index
+summary(datos$city_development_index)
+sd(datos$city_development_index)
+
+boxplot(datos$city_development_index,
+        main = "Distribucion de city dev",
+        ylab = "city develpment",
+        col = "lightgreen",
+        border = "darkgreen")
+
+
+ric= 0.9200 -0.7400
+ric
+limite_inferior=0.7400- 3*ric
+limite_inferior
+
+table(datos$city_development_index)
+
+datos$city_development_index[datos$city_development_index <= limite_inferior] <- mean(datos$city_development_index)
+
+boxplot(datos$city_development_index ~ datos$target, col = "lightblue",
+        main = "Cirty development por target",
+        xlab = "target",
+        ylab = "City dev" )
+
+#training_hours
+summary(datos$training_hours)
+sd(datos$training_hours)
+
+boxplot(datos$training_hours,
+        main = "Distribucion horas entrenamiento",
+        ylab = "horas",
+         col = "pink",
+        border = "red")
+
+ric= 88 -23
+ric
+
+limite_superior=88+ 3*ric
+limite_superior
+
+table(datos$training_hours)    # 275 outliers
+
+datos$training_hours[datos$training_hours >= limite_superior] <- median(datos$training_hours)
+
+boxplot(datos$training_hours ~ datos$target, col = "lightblue",
+        main = "Horas por target",
+        xlab = "target",
+        ylab = "horas" )
+
+#otros graficos 
+
+job_change$targg <- ifelse(job_change$target == 1,"change","no_change")
+  
+datos %>% 
+  ggplot(aes(city_development_index,fill=targg)) +
+  geom_density(alpha = 0.2)
+
+datos %>% 
+  ggplot(aes(training_hours,fill=targg)) +
+  geom_density(alpha = 0.2)
+
+```
+
+
+```{r}
+
+# test chi cuadrado - Variables categorica
+
+# Si el valor p es menor que o igual al nivel de significancia, se rechaza la hipótesis nula y concluye que hay una asociación estadísticamente significativa entre las variables.
+
+#Ho: no existe asociacion estadisticamente significativa entre las variables (variables independientes)
+#Ha: existe (dependencia)
+
+# Si rechazo hay una asociacion estadisticamente significativa entre las variables
+
+# Grados de libertad = n-1
+
+base = datos
+
+# CITY
+tabla1 <- table(datos$target,datos$city)
+tabla1
+
+chisq.test(tabla1)   # Rechazo H0 = existe suficiente evidencia estadistica para decriq ue hay una asociacion significativa
+
+# GENDER
+tabla2 <- table(datos$target,datos$gender)
+tabla2
+
+chisq.test(tabla2) 
+
+#RELEVANT EXP
+tabla3 <- table(datos$target,datos$relevent_experience)
+tabla3
+
+chisq.test(tabla3) 
+
+# ENROLLED UNI
+tabla4 <- table(datos$target,datos$enrolled_university)
+tabla4
+
+chisq.test(tabla4) 
+
+# EDUCATION LEVEL
+tabla5 <- table(datos$target,datos$education_level)
+tabla5
+
+chisq.test(tabla5) 
+
+# MAJOR DISCIPLINE
+tabla6 <- table(datos$target,datos$major_discipline)
+tabla6
+
+chisq.test(tabla6) 
+
+# ECPERIENCE
+tabla7 <- table(datos$target,datos$experience)
+tabla7
+
+chisq.test(tabla7) 
+
+# COMPANY SIZE
+tabla8 <- table(datos$target,datos$company_size)
+tabla8
+
+chisq.test(tabla8) 
+
+
+# COMPANY TYPE
+tabla9 <- table(datos$target,datos$company_type)
+tabla9
+
+chisq.test(tabla9) 
+
+# LAST_NEW_JOB
+tabla10 <- table(datos$target,datos$last_new_job)
+tabla10
+
+chisq.test(tabla10) 
+
+
+# En todos los casos hay asociacion estadisticamente significativa.
+
+```
+
+```{r}
+# TEST T DE STUDENT  - Variables cualitativas
+
+# CITY DEVELOPMENT INDEX
+no_busca_cambio <- datos %>% filter(target == 0) %>% pull(city_development_index)
+busca_cambio <- datos %>% filter(target == 1) %>% pull(city_development_index)
+
+
+t.test(
+  x           = no_busca_cambio,
+  y           = busca_cambio,
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+
+# rechazo ho: el indice de desarrollo medio de la ciudad de las personas que buscan cambiar de trabajo difiere del de aquellas que no buscan cambiar.
+
+
+# TRAINING HOURS
+no_busca_cambio <- datos %>% filter(target == 0) %>% pull(training_hours)
+busca_cambio <- datos %>% filter(target == 1) %>% pull(training_hours)
+
+
+t.test(
+  x           = no_busca_cambio,
+  y           = busca_cambio,
+  alternative = "two.sided",
+  mu          = 0,
+  var.equal   = TRUE,
+  conf.level  = 0.95
+)
+
+# rechazo ho: la media de las horas de entrenamiento de las personas que buscan cambiar de trabajo difiere de la de aquellas que no buscan cambiar.
+
+
+```
+
+```{r}
+
+# CORRELACION (matriz completa en pyhton)
+
+cor(datos$city_development_index,datos$target, method="pearson", use = "complete.obs")
+cor(datos$training_hours,datos$target, method="pearson", use = "complete.obs")
+
+# Matriz correlacion
+
+my_data <- datos[, c(2,7,8)]
+ggpairs(my_data)
+
+my_data %>%
+    cor %>% 
+    ggcorrplot(type = "lower", ggtheme = theme_minimal, colors = c("#6D9EC1","white","#E46726"),
+               show.diag = T,
+               lab = T, lab_size = 5,
+               title = "Correlation Matrix",
+               legend.title = "Correlation Value",
+               outline.color = "white",
+               hc.order = T)
+
+```
+
+```{r}
+ # TRANSFORMACION DE VARIABLES
+
+datos$enrollee_id <- NULL
+datos$targg <- NULL
+base2 = datos 
+
+# a las variables nominales les aplicaremos one hot encoding, y a las ordinales las reemplazo manualmente 
+
+#-------------------------------
+# DUMMIES
+
+# COMPANY SIZE
+datos <-dummy_cols(datos,  select_columns = c("company_size")) %>% 
+  select(-c("company_size"))
+
+datos$company_size_mid_company_size <- NULL
+
+# GENERO
+datos <-dummy_cols(datos,  select_columns = c("gender")) %>% 
+  select(-c("gender"))
+
+datos$gender_unknown <- NULL
+
+# ENROLLED UNI
+datos <-dummy_cols(datos,  select_columns = c("enrolled_university")) %>% 
+  select(-c("enrolled_university"))
+
+datos$`enrolled_university_Part time course` <- NULL
+
+# MAJOR DISCIPLINE
+datos$high_major_discipline <- ifelse(datos$major_discipline == "high_discipline",1,0)
+
+datos$major_discipline <- NULL
+
+#COMPANY TYPE
+datos <-dummy_cols(datos,  select_columns = c("company_type")) %>% 
+  select(-c("company_type"))
+
+datos$company_type_mid_company_type <- NULL
+
+# relevant exp
+table(datos$relevent_experience)
+datos$relevent_experience <- ifelse(datos$relevent_experience == "Has relevent experience",1,0)
+
+#------------------------------------
+# ENCODING ORDINAL (MANUAL)
+
+# EDUCATION LEVEL
+datos$education_level = factor(datos$education_level, 
+                               levels = c('Primary School', 'High School', 'Graduate', 'Masters', 'Phd'), 
+                               labels = c(1, 2, 3,4,5))
+
+# EXPERIENCE
+datos$experience[datos$experience == '<1'] <- 0
+datos$experience[datos$experience == '>20'] <- 21
+
+# LAST NEW JOB
+datos$last_new_job = factor(datos$last_new_job,
+                        levels = c('>4','1','2','3','4', 'never'),
+                        labels = c(5,1,2,3,4,0))
+
+# CITY
+datos$city <- substring(datos$city, 6)
+
+label <- LabelEncoder$new()
+print(label$fit(datos$city))
+datos$city <- label$fit_transform(datos$city)
+
+#-------------------------------------
+
+# CAMBIO TIPO DE DATO
+
+datos$education_level <- as.numeric(datos$education_level)
+table(datos$education_level)
+
+datos$experience <- as.numeric(datos$experience)
+table(datos$experience)
+
+datos$last_new_job<-as.numeric(levels(datos$last_new_job))[datos$last_new_job]
+table(datos$last_new_job)
+
+#datos$city<-as.numeric(datos$city)
+#table(datos$city)
+
+str(datos)
+
+```
+
+
+```{r}
+write.csv(datos,'Ana_Pred_final.csv')
+```
+
+
+
+
+
+
+
+
+
+
